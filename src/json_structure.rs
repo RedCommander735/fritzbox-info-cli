@@ -1,11 +1,12 @@
 use serde_aux::prelude::deserialize_number_from_string;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::Error;
 
 macro_rules! pub_struct {
     (
         $(#[$meta:meta])*
-        pub struct $name:ident {
+        struct $name:ident {
             $(
                 $(#[$field_meta:meta])*
                 $field:ident : $ty:ty
@@ -22,141 +23,235 @@ macro_rules! pub_struct {
     };
 }
 
+// TODO Rename most fields to make more sense or look better
+
 pub_struct!(
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FritzHomeNetResponse {
+struct FritzResponse {
     pid: String,
     hide: Hide,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     time_till_logout: u64,
-    time: Vec<Option<serde_json::Value>>,
     data: Data,
     sid: String,
 }
 );
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Hide {
-    pub share_usb: bool,
-    pub live_tv: bool,
-    pub fax_set: bool,
-    pub prov_serv: bool,
-    pub dect_moni_ex: bool,
-    pub rss: bool,
-    pub mobile: bool,
-    pub dect_rdio: bool,
-    pub dect_moni: bool,
-    pub dect_mail: bool,
-    pub sso_set: bool,
-    pub rrd: bool,
-    pub live_img: bool
+struct Hide {
+    share_usb: bool,
+    live_tv: bool,
+    fax_set: bool,
+    prov_serv: bool,
+    dect_moni_ex: bool,
+    rss: bool,
+    mobile: bool,
+    dect_rdio: bool,
+    dect_moni: bool,
+    dect_mail: bool,
+    sso_set: bool,
+    rrd: bool,
+    live_img: bool
 }
+);
 
 #[derive(Serialize, Deserialize)]
-pub struct Data {
-    pub searching: bool,
-    pub ipclient: bool,
-    pub fwcheck: Fwcheck,
-    pub updating: String,
-    pub topology: Topology,
-    pub nexusclient: bool,
-    pub devices: Vec<Device>,
+#[serde(untagged)]
+pub enum Data {
+    HomeNetData(HomeNetData),
+    EditDeviceData(EditDeviceData),
 }
 
+impl Data {
+    pub fn to_home_net_data(self) -> Result<HomeNetData, Error> {
+        match self {
+            Data::HomeNetData(d) => Ok(d),
+            Data::EditDeviceData(_) => Err(Error::ConversionError)
+        }
+    }
+    pub fn to_edit_device_data(self) -> Result<EditDeviceData, Error> {
+        match self {
+            Data::EditDeviceData(d) => Ok(d),
+            Data::HomeNetData(_) => Err(Error::ConversionError)
+        }
+    }
+}
+
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Connection {
-    pub dsl_diagnosis: bool,
-    pub medium_upstream: u64,
-    pub downstream: u64,
-    pub role: String,
-    pub provider: String,
-    pub ipv4: Ipv4,
-    pub connected: bool,
-    pub shapedrate: bool,
-    pub direct_connection: bool,
-    pub ready_for_fallback: bool,
-    pub medium_downstream: u64,
-    pub state: String,
-    pub upstream: u64,
-    pub name: String,
+struct EditDeviceData {
+    vars: EditDeviceVars
+}
+);
+
+pub_struct!(
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditDeviceVars {
+    ipv6_enabled: bool,
+    ip_mask: String,
+    plc: Plc,
+    is_mac_filter_active: bool,
+    dev: EditDeviceDevice,
+    back_to_page: String,
+    dev_node: String
+}
+);
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditDeviceDevice {
+    // dev_details: DevDetails,
+    #[serde(rename="UID")]
+    uid: String,
+    // TODO a.json line 37
+}
+
+pub_struct!(
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Plc {
+    emv_norm_en50561: EmvNormEN50561
+}
+);
+
+pub_struct!(
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EmvNormEN50561 {
+    can_optimize: bool,
+    optimize: bool
+}
+);
+
+pub_struct!(
+#[derive(Serialize, Deserialize)]
+struct HomeNetData {
+    searching: bool,
+    ipclient: bool,
+    fwcheck: Fwcheck,
+    updating: String,
+    topology: Topology,
+    nexusclient: bool,
+    devices: Vec<Device>,
+}
+);
+
+pub_struct!(
+#[derive(Serialize, Deserialize)]
+struct Connection {
+    dsl_diagnosis: bool,
+    medium_upstream: u64,
+    downstream: u64,
+    role: String,
+    provider: String,
+    ipv4: Ipv4,
+    connected: bool,
+    shapedrate: bool,
+    direct_connection: bool,
+    ready_for_fallback: bool,
+    medium_downstream: u64,
+    state: String,
+    upstream: u64,
+    name: String,
     #[serde(rename = "type")]
-    pub connection_type: String,
-    pub active: bool,
-    pub ipv6: Ipv6,
-    pub speed_manual: bool,
-    pub medium: String,
+    connection_type: String,
+    active: bool,
+    ipv6: Ipv6,
+    speed_manual: bool,
+    medium: String,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Ipv4 {
-    pub connected: bool,
-    pub dns: Vec<Dns>,
-    pub dslite: bool,
-    pub ip: String,
-    pub since: u64,
+struct Ipv4 {
+    connected: bool,
+    dns: Vec<Dns>,
+    dslite: bool,
+    ip: String,
+    since: u64,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Dns {
+struct Dns {
     #[serde(rename = "type")]
-    pub dns_type: String,
-    pub ip: String,
+    dns_type: String,
+    ip: String,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Ipv6 {
-    pub ip_lifetime: Lifetime,
-    pub connected: bool,
-    pub dns: Vec<Dns>,
-    pub ip: String,
-    pub prefix: String,
-    pub prefix_lifetime: Lifetime,
-    pub since: u64,
+struct Ipv6 {
+    ip_lifetime: Lifetime,
+    connected: bool,
+    dns: Vec<Dns>,
+    ip: String,
+    prefix: String,
+    prefix_lifetime: Lifetime,
+    since: u64,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Lifetime {
-    pub valid: u64,
-    pub preferred: u64,
+struct Lifetime {
+    valid: u64,
+    preferred: u64,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct ConninfoConninfo {
-    pub kind: String,
-    pub speed: Option<String>,
-    pub bandinfo: Option<Vec<BandInfo>>,
-    pub usedbands: Option<i64>,
-    pub desc: String,
+struct ConninfoConninfo {
+    kind: String,
+    speed: Option<String>,
+    bandinfo: Option<Vec<BandInfo>>,
+    usedbands: Option<i64>,
+    desc: String,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct BandInfo {
-    pub band: u64,
-    pub speed_tx: u64,
-    pub speed_rx: u64,
-    pub speed: String,
-    pub desc: String,
+struct BandInfo {
+    band: u64,
+    speed_tx: u64,
+    speed_rx: u64,
+    speed: String,
+    desc: String,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct DetailInfo {
-    pub edit: Edit,
-    pub portrelease: bool,
+struct DetailInfo {
+    edit: Edit,
+    portrelease: bool,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Edit {
-    pub pid: EditPid,
-    pub params: Params,
+struct Edit {
+    pid: EditPid,
+    params: Params,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Params {
-    pub dev: String,
-    pub back_to_page: BackToPageEnum,
+struct Params {
+    dev: String,
+    back_to_page: BackToPageEnum,
 }
+);
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -172,23 +267,29 @@ pub enum EditPid {
     EditDevice,
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct NameInfo {
-    pub name: String,
-    pub product: Option<String>,
+struct NameInfo {
+    name: String,
+    product: Option<String>,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Phone {
-    pub number_count: u64,
-    pub active_count: u64,
+struct Phone {
+    number_count: u64,
+    active_count: u64,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct UpdateInfo {
-    pub state: State,
+struct UpdateInfo {
+    state: State,
 }
+);
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -197,26 +298,32 @@ pub enum State {
     None,
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Wlaninfo {
-    pub text: String,
-    pub title: String,
-    pub shorttitle: String,
+struct Wlaninfo {
+    text: String,
+    title: String,
+    shorttitle: String,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Fwcheck {
-    pub notdone: bool,
-    pub nocheck: bool,
-    pub auto: bool,
-    pub started: bool,
+struct Fwcheck {
+    notdone: bool,
+    nocheck: bool,
+    auto: bool,
+    started: bool,
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct Topology {
-    pub rootuid: String,
-    pub devices: HashMap<String, Device>,
+struct Topology {
+    rootuid: String,
+    devices: HashMap<String, Device>,
 }
+);
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
@@ -226,31 +333,34 @@ pub enum Device {
     DefaultDevice(DefaultDevice),
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct DefaultDevice {
-    pub own_client_device: bool,
-    pub dist: u64,
-    pub parent: String,
+struct DefaultDevice {
+    own_client_device: bool,
+    dist: u64,
+    parent: String,
     #[serde(rename="UID")]
-    pub uid: String,
-    pub category: Category,
-    pub switch: bool,
-    pub children: Vec<String>,
-    pub devtype: String,
-    pub ownentry: bool,
-    pub stateinfo: StateInfo,
-    pub conn: Conn,
-    pub master: bool,
-    pub ipinfo: String,
-    pub updateinfo: UpdateInfo,
-    pub gateway: bool,
-    pub nameinfo: NameInfo,
-    pub detailinfo: DetailInfo,
-    pub conninfo: ConnInfo
+    uid: String,
+    category: Category,
+    switch: bool,
+    children: Vec<String>,
+    devtype: String,
+    ownentry: bool,
+    stateinfo: StateInfo,
+    conn: Conn,
+    master: bool,
+    ipinfo: String,
+    updateinfo: UpdateInfo,
+    gateway: bool,
+    nameinfo: NameInfo,
+    detailinfo: DetailInfo,
+    conninfo: ConnInfo
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct RouterDevice {
+struct RouterDevice {
     own_client_device: bool,
     dist: u64,
     parent: String,
@@ -276,9 +386,11 @@ pub struct RouterDevice {
     box_type: String,
     wlaninfo: Vec<Wlaninfo>
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct PLCDevice {
+struct PLCDevice {
     own_client_device: bool,
     dist: u64,
     parent: String,
@@ -301,13 +413,16 @@ pub struct PLCDevice {
     detailinfo: DetailInfo,
     isplc: bool
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct RouterDetailInfo {
+struct RouterDetailInfo {
     wlan24: bool,
     wlan5: bool,
     guestaccess: bool
 }
+);
 
 #[derive(Serialize, Deserialize)]
 pub enum DevType {
@@ -315,14 +430,17 @@ pub enum DevType {
     FritzBox
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct RouterStateInfo {
+struct RouterStateInfo {
     nexustrust: bool,
     active: bool
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct StateInfo {
+struct StateInfo {
     guest_owe: bool,
     active: bool,
     meshable: bool,
@@ -334,6 +452,8 @@ pub struct StateInfo {
     #[serde(rename = "internetBlocked")]
     internet_blocked: bool
 }
+);
+
 
 #[derive(Serialize, Deserialize)]
 pub enum Category {
@@ -364,21 +484,25 @@ pub enum ConnInfo {
     WirelessConnInfo(WirelessConnInfo)
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct WiredConnInfo {
+struct WiredConnInfo {
     speed: Option<String>,
     kind: WiredConnKind,
     desc: String
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct WirelessConnInfo {
+struct WirelessConnInfo {
     speed: String,
     kind: WirelessConnKind,
     bandinfo: Vec<BandInfo>,
     usedbands: u64,
     desc: String
 }
+);
 
 #[derive(Serialize, Deserialize)]
 pub enum WiredConnKind {
@@ -394,13 +518,17 @@ pub enum WirelessConnKind {
     Wlan
 }
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct VersionInfo {
+struct VersionInfo {
     version: String
 }
+);
 
+pub_struct!(
 #[derive(Serialize, Deserialize)]
-pub struct RouterVersionInfo {
+struct RouterVersionInfo {
     version: String,
     fos: bool
 }
+);
